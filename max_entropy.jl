@@ -124,7 +124,7 @@ function calc_A_al(G::AbstractArray{T}, W::AbstractArray{T}, K::AbstractArray{T}
     
     Q_old, S, chi2 = _Q(A, G, W, K, m, al)
 
-    # search for max entryop
+    # search for max entropy
     small_dQ = 0
     for i=1:max_iter
         prob = LinearProblem((al+mu)*Id+MT,-f)
@@ -211,21 +211,31 @@ function kernel_b(β::Real,τ::AbstractVector{T},ω::AbstractVector{T},sym=true)
         denom = 1.0 - exp(-β*ω[oi])
         if sym
             for ti = 1:length(τ)
-                K[ti,oi] = ω* (exp(-τ[ti]*ω[oi]) + exp(-(β- τ[ti])*ω[oi]))/denom
+                K[ti,oi] = ω[oi]* (exp(-τ[ti]*ω[oi]) + exp(-(β- τ[ti])*ω[oi]))/denom
             end
         else
             for ti = 1:length(τ)
-                K[ti,oi] = ω* (exp(-τ[ti]*ω[oi]))/denom
+                K[ti,oi] = ω[oi]* (exp(-τ[ti]*ω[oi]))/denom
             end
         end
     end
     return K
 end
 
-model = [0.1,.5,.3,.1]
-beta = 1.0
-tau = [1.0/3.0,2.0/3.0,1.0]
-omegas = [-1.0, 0.0, 1.0, 2.0]
-K_arr::AbstractArray = kernel_f(beta,tau,omegas)
-myG = [.2 .1 .3; .01 .2 .3]
-mix = calculate_spectral_function(myG,K_arr,model)
+# Test case code
+# model = [0.1,.5,.3,.1]
+# beta = 1.0
+# tau = [1.0/3.0,2.0/3.0,1.0]
+# omegas = [-1.0, 0.0, 1.0, 2.0]
+# K_arr::AbstractArray = kernel_f(beta,tau,omegas)
+# myG = [.2 .1 .3; .01 .2 .3]
+# mix = calculate_spectral_function(myG,K_arr,model)
+
+
+"""
+test case code output:
+
+[0.028518292289147068, 0.13259632970933902, 0.09668783528715834, 0.04414219378266102]	A
+
+alpha=12589.254	chi2/dof=0.271	A.sum()=0.301945
+"""
