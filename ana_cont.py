@@ -1,6 +1,6 @@
 """
 Given the relation:
-G(\tau,k) = \int K(\omega) * A(\omega,\tau,k) d\omega
+G(\tau,k) = \int K(\omega, \tau) * A(\omega,k) d\omega
 and knowing K and G, we solve for A. K is a known kernel for fermionic 
 (electronic spectral functions) or bosonic (structure factors) 
 
