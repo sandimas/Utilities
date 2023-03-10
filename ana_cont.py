@@ -15,7 +15,7 @@ examples:
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
                          -10.0 10.0 101 0 19 "chi2kink" "scipy_lm" "chi2run"
 
-1D Chain, default settings
+1D Chain, default settings, all k points
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "greens_up" \
                          -10.0 10.0 101
 
@@ -74,9 +74,9 @@ import os
 import pandas as pd
 import toml
 sys.path.insert(0, "/home/james/Documents/code/ana_cont")
-sys.path.insert(0, "/lustre/proj/UTK0014/AnalyticContinuation/ana_cont")
+sys.path.insert(0, "/lustre/proj/UTK0014/AnalyticContinuation/ana_cont/ana_cont")
 
-import ana_cont.continuation as cont
+import continuation as cont
 """
 ana_cont citation
 Package bibtex:
@@ -151,6 +151,11 @@ if num_args > 7:
         print("Defaulting to calculating function for all k points")
         k_max = k_max_run
         k_min = k_min_run
+else:
+    print("Defaulting to calculating function for all k points")
+    k_max = k_max_run
+    k_min = k_min_run
+        
 if num_args > 8:
     alpha_method = sys.argv[8].lower()
     allowed_alphas = ('historic','classic','bryan','chi2kink')
@@ -277,20 +282,15 @@ for orbital in range(0,n_orbitals):
                                         optimizer=optimizer,
                                         stdev=data_err[orbital,:,k1,k2,k3], model=model,
                                         interactive=False,
-                                        verbose=True)
+                                        verbose=False)
                     output_file_name = folder_str + '/ana_cont/' + correlation_str + '_o' + str(orbital) + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
                     output = np.zeros((omega_num,2))
                     output[:,0] = omega_vals
                     output[:,1] = sol.A_opt
-                    # print(sol.A_opt)
-                    # exit()
                     np.savetxt(output_file_name,output,delimiter=' ')
                 except:
                     print("Solver failed to converge for")
-                    print("   orbital:",orbital)
-                    print("   k1     :",k1)
-                    print("   k2     :",k2)
-                    print("   k3     :",k3)
+                    print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:")
                     num_failure += 1.0
 print("Code finished with",int(num_failure),"of",int(num_try), "attempts failing")
 print("Failure rate =",num_failure/num_try)
