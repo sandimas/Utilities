@@ -30,7 +30,7 @@ examples:
 FOLDER:
     Output folder for SmoQyDQMC
 CORRELATION:
-    'spin_z', 'density', 'greens_up', 'greens_down' or 'phonon_greens'
+    'spin_z', 'density', 'greens_up', 'greens_dn' or 'phonon_greens'
 OMEGA_MIN, OMEGA_MAX, N_OMEGA:
     If you only apply Analytic Continuation on the range you care about plotting 
     it is highly likely to fail! If that happens, you may need to expand your range
@@ -123,7 +123,7 @@ n_dims, beta, n_tau, n_orbitals, k_min_run, k_max_run = parse_toml(folder_str)
 
 # load correlation string, correct for likely typos
 correlation_str = sys.argv[2].lower().replace('-','_')
-allowed_correlations = ('spin_z', 'density', 'greens_up', 'greens_down', 'phonon_greens')
+allowed_correlations = ('spin_z', 'density', 'greens_up', 'greens_dn', 'phonon_greens')
 if allowed_correlations.count(correlation_str) == 0:
     print(correlation_str,"is not an allowed correlation")
     exit()
