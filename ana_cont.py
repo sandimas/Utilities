@@ -13,7 +13,7 @@ This file will take arguments passed via command line to perform analytic contin
 examples:
 1D Chain, k points [0,19], treat each orbital separately
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
-                         -10.0 10.0 101 0 19 none "chi2kink" "scipy_lm" "chi2run"
+                         -10.0 10.0 101 0 19 all "chi2kink" "scipy_lm" "chi2run"
 
 1D Chain, default settings, all k points
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "greens_up" \
@@ -21,7 +21,7 @@ examples:
 
 3D, passing 3D k points with k_x = 1, k_y = [0,19], k_z = 4, merge orbitals 0 with 2, 1 with 3
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
-                         -10.0 10.0 101 1,0,4 1,19,4 0+2,1+3
+                         -10.0 10.0 101 1x0x4 1x19x4 0+2x1+3
 
                     
                      
@@ -38,12 +38,12 @@ OMEGA_MIN, OMEGA_MAX, N_OMEGA:
     E.g. for density omega = [-10.0, 10.0] n=201 has given me good results. Same for 
     spin_z, where I trim the data to [0.0, 2.0] later
 K_MIN, K_MAX (optional): Default is "all"
-    K points to include (Python nomenclature). Dimensions are separated by commas
+    K points to include (Python nomenclature). Dimensions are separated by "x"
     alternatively you may use "all" "all" to parse all k points 
 ORBITALS (optional): default is "all"
     Orbitals to merge prior to computing AC. Default is to do all of them separately. Separate combinations are  You can instead
     merge orbitals as you wish. E.g. for 4 orbitals, to do orbital 1 alone and merge 0, 2, and 3
-    you use "1,0+2+3". To do just 0,1, and 3 separately you do "0,1,3". "all" will do all orbitals alone  
+    you use "1x0+2+3". To do just 0,1, and 3 separately you do "0x1x3". "all" will do all orbitals alone  
 ALPHA: (optional): Default is 'chi2kink'
     Algorithm for calculating alphas in max ent method. Options are 'chi2kink', 'historic',
     'classic', and 'bryan'. AFAIK bryan is broken. 'chi2kink' is recommended.
@@ -78,7 +78,7 @@ import os
 import pandas as pd
 import toml
 sys.path.insert(0, "/home/james/Documents/code/ana_cont")
-sys.path.insert(0, "/lustre/proj/UTK0014/AnalyticContinuation/ana_cont/")
+sys.path.insert(0, "/lustre/isaac/proj/UTK0014/AnalyticContinuation/ana_cont")
 import ana_cont.continuation as cont
 """
 ana_cont citation.
@@ -144,9 +144,9 @@ omega_step = (omega_max - omega_min) / (omega_num - 1)
 if num_args > 7:
     k_min_str = sys.argv[6]
     if (k_min_str != "all"):
-        k_min_str_array = k_min_str.split(',')
+        k_min_str_array = k_min_str.split('x')
         k_min = [int(i) for i in k_min_str_array]
-        k_max_str_array = sys.argv[7].split(',')
+        k_max_str_array = sys.argv[7].split('x')
         k_max = [int(i) for i in k_max_str_array]
         if (np.shape(k_min)[0] != n_dims) or (np.shape(k_max)[0] != n_dims):
             print("Simulation was",n_dims,"dimensional. Incorrect dimensions on K values")
@@ -167,7 +167,7 @@ if num_args > 8:
             orbital_list[orb] = orb
     else:
         try:
-            txt_groups = sys.argv[8].split(',')
+            txt_groups = sys.argv[8].split('x')
             n_orbital_groups = len(txt_groups)
             maxlen = 1
             for i in range(0,n_orbital_groups):
