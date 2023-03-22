@@ -8,20 +8,20 @@ and knowing K and G, we solve for A. K is a known kernel for fermionic
 
 This file will take arguments passed via command line to perform analytic continuation
 
-    python3 ana_cont.py FOLDER CORRELATION OMEGA_MIN OMEGA_MAX N_OMEGA K_MIN K_MAX ALPHA OPTIMIZER NAMETAG
+    python3 ana_cont.py FOLDER CORRELATION OMEGA_MIN OMEGA_MAX N_OMEGA K_MIN K_MAX ORBITALS ALPHA OPTIMIZER NAMETAG
 
 examples:
-1D Chain, k points [0,19]
+1D Chain, k points [0,19], treat each orbital separately
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
-                         -10.0 10.0 101 0 19 "chi2kink" "scipy_lm" "chi2run"
+                         -10.0 10.0 101 0 19 none "chi2kink" "scipy_lm" "chi2run"
 
 1D Chain, default settings, all k points
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "greens_up" \
                          -10.0 10.0 101
 
-3D, passing 3D k points with k_x = 1, k_y = [0,19], k_z = 4
+3D, passing 3D k points with k_x = 1, k_y = [0,19], k_z = 4, merge orbitals 0 with 2, 1 with 3
     python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
-                         -10.0 10.0 101 1,0,4 1,19,4
+                         -10.0 10.0 101 1,0,4 1,19,4 0+2,1+3
 
                     
                      
@@ -40,6 +40,10 @@ OMEGA_MIN, OMEGA_MAX, N_OMEGA:
 K_MIN, K_MAX (optional): Default is "all"
     K points to include (Python nomenclature). Dimensions are separated by commas
     alternatively you may use "all" "all" to parse all k points 
+ORBITALS (optional): default is "all"
+    Orbitals to merge prior to computing AC. Default is to do all of them separately. Separate combinations are  You can instead
+    merge orbitals as you wish. E.g. for 4 orbitals, to do orbital 1 alone and merge 0, 2, and 3
+    you use "1,0+2+3". To do just 0,1, and 3 separately you do "0,1,3". "all" will do all orbitals alone  
 ALPHA: (optional): Default is 'chi2kink'
     Algorithm for calculating alphas in max ent method. Options are 'chi2kink', 'historic',
     'classic', and 'bryan'. AFAIK bryan is broken. 'chi2kink' is recommended.
@@ -74,11 +78,10 @@ import os
 import pandas as pd
 import toml
 sys.path.insert(0, "/home/james/Documents/code/ana_cont")
-sys.path.insert(0, "/lustre/proj/UTK0014/AnalyticContinuation/ana_cont/ana_cont")
-
-import continuation as cont
+sys.path.insert(0, "/lustre/proj/UTK0014/AnalyticContinuation/ana_cont/")
+import ana_cont.continuation as cont
 """
-ana_cont citation
+ana_cont citation.
 Package bibtex:
 @article{KaufmannJosef2023aPpf,
 author = {Kaufmann, Josef and Held, Karsten},
@@ -136,7 +139,8 @@ omega_min = float(sys.argv[3])
 omega_max = float(sys.argv[4])
 omega_num = int(sys.argv[5])
 omega_step = (omega_max - omega_min) / (omega_num - 1)
-# parse toml
+
+# K_MIN and K_MAX
 if num_args > 7:
     k_min_str = sys.argv[6]
     if (k_min_str != "all"):
@@ -155,9 +159,36 @@ else:
     print("Defaulting to calculating function for all k points")
     k_max = k_max_run
     k_min = k_min_run
-        
+# ORBITALS
 if num_args > 8:
-    alpha_method = sys.argv[8].lower()
+    if sys.argv[8].lower() == "all":
+        orbital_list = np.zeros((n_orbitals,1),int)
+        for orb in range(0,n_orbitals):
+            orbital_list[orb] = orb
+    else:
+        try:
+            txt_groups = sys.argv[8].split(',')
+            n_orbital_groups = len(txt_groups)
+            maxlen = 1
+            for i in range(0,n_orbital_groups):
+                maxlen = max(maxlen,1+txt_groups[i].count('+'))
+            orbital_list = np.full((n_orbital_groups,maxlen),-1,int)
+            for group in range(0,n_orbital_groups):
+                split_string = txt_groups[group].split('+')
+                for orb in range(0,len(split_string)):
+                    orbital_list[group,orb] = int(split_string[orb])
+        except:
+            print(sys.argv[8]," is not an acceptable input for ORBITALS")
+            exit()
+else:
+    # default to all  
+    orbital_list = np.zeros((n_orbitals,1),int)
+    for orb in range(0,n_orbitals):
+        orbital_list[orb] = orb
+print("orbital_list\n",orbital_list)
+# ALPHA
+if num_args > 9:
+    alpha_method = sys.argv[9].lower()
     allowed_alphas = ('historic','classic','bryan','chi2kink')
     if allowed_alphas.count(alpha_method) == 0:
         print(alpha_method,"is not an allowed ALPHA.")
@@ -165,8 +196,9 @@ if num_args > 8:
         exit()
 else:
     alpha_method = 'chi2kink'
-if num_args > 9:
-    optimizer = sys.argv[9].lower()
+# OPTIMIZER
+if num_args > 10:
+    optimizer = sys.argv[10].lower()
     allowed_optimizers = ('newton','scipy_lm')
     if allowed_optimizers.count(optimizer) == 0:
         print(optimizer, "is not an allowed OPTIMIZER")
@@ -174,8 +206,9 @@ if num_args > 9:
         exit()
 else:
     optimizer = 'scipy_lm'
-if num_args > 10:
-    nametag = '_' + sys.argv[10]
+# NAMETAG
+if num_args > 11:
+    nametag = '_' + sys.argv[11]
 else:
     nametag = ''
 data_file_str = folder_str + '/time-displaced/' + correlation_str + '/' + correlation_str + "_momentum_time-displaced_stats.csv"
@@ -206,19 +239,13 @@ else:
     diagonal_lower = int((ID_test_len * (n_orbitals - 1))/2)
     diagonal_upper = diagonal_lower + ID_test_len
 
-
 print("Diagonal IDs found for range",diagonal_lower,"to",diagonal_upper)
-
-
-# For sanity checking the reshape
-# comment out after checking
-
 data_values = data_values[diagonal_lower:diagonal_upper]
 data_err = data_err[diagonal_lower:diagonal_upper]
 
 
 
-# Enumerate values
+# Enumerate omega and tau values
 omega_vals = np.linspace(omega_min,omega_max,num=omega_num,endpoint=True)
 tau_vals = np.linspace(0.0,beta,num=n_tau,endpoint=True)
 
@@ -233,8 +260,6 @@ elif (n_dims==2):
     k_shape = [k_max_run[0]+1,k_max_run[1]+1,1]
 else:
     k_shape = [k_max_run[0]+1,k_max_run[1]+1,k_max_run[2]]
-
-
 
 k_max_adj = np.ones((3),int)
 k_min_adj = np.zeros((3),int)
@@ -252,7 +277,7 @@ model /= np.trapz(model,omega_vals)
 if (not os.path.exists(folder_str + "/ana_cont")):
     os.mkdir(folder_str + "/ana_cont")
 
-####### TEST BLOCK
+####### TEST BLOCK for checking reshaping 
 # data_k1 = pd.DataFrame(data_frame, columns=['K_1']).to_numpy()
 # data_k1 = data_k1[diagonal_lower:diagonal_upper]
 # data_ID1 = data_ID1[diagonal_lower:diagonal_upper]
@@ -268,30 +293,37 @@ if (not os.path.exists(folder_str + "/ana_cont")):
 
 num_failure = 0.0
 num_try = 0.0
-for orbital in range(0,n_orbitals):
+# Loop over all orbital groupings and k points
+for orbital_group in range(0,np.shape(orbital_list)[0]):
     for k1 in range(k_min_adj[0],k_max_adj[0]):
         for k2 in range(k_min_adj[1],k_max_adj[1]):
             for k3 in range(k_min_adj[2],k_max_adj[2]):
-                num_try += 1.0
-                probl = cont.AnalyticContinuationProblem(im_axis=tau_vals, re_axis=omega_vals,
-                                                        im_data=data_values[orbital,:,k1,k2,k3],
-                                                        kernel_mode=kernel_str, beta=beta)
-                try:
-                    sol,_ = probl.solve(method='maxent_svd',
-                                        alpha_determination=alpha_method,
-                                        optimizer=optimizer,
-                                        stdev=data_err[orbital,:,k1,k2,k3], model=model,
-                                        interactive=False,
-                                        verbose=False)
-                    output_file_name = folder_str + '/ana_cont/' + correlation_str + '_o' + str(orbital) + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
-                    output = np.zeros((omega_num,2))
-                    output[:,0] = omega_vals
-                    output[:,1] = sol.A_opt
-                    np.savetxt(output_file_name,output,delimiter=' ')
-                except:
-                    print("Solver failed to converge for")
-                    print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:")
-                    num_failure += 1.0
+                output = np.zeros((omega_num,2))
+                output[:,0] = omega_vals
+        
+                for orbital in orbital_list[orbital_group]:
+                    if orbital == -1:
+                        print("break")
+                        break    
+                    num_try += 1.0
+                    probl = cont.AnalyticContinuationProblem(im_axis=tau_vals, re_axis=omega_vals,
+                                                            im_data=data_values[orbital,:,k1,k2,k3],
+                                                            kernel_mode=kernel_str, beta=beta)
+                    try:
+                        sol,_ = probl.solve(method='maxent_svd',
+                                            alpha_determination=alpha_method,
+                                            optimizer=optimizer,
+                                            stdev=data_err[orbital,:,k1,k2,k3], model=model,
+                                            interactive=False,
+                                            verbose=False)
+                        output[:,1] += sol.A_opt
+                        
+                    except:
+                        print("Solver failed to converge for")
+                        print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:")
+                        num_failure += 1.0
+                output_file_name = folder_str + '/ana_cont/' + correlation_str + '_o' + txt_groups[orbital_group] + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
+                np.savetxt(output_file_name,output,delimiter=' ')
 print("Code finished with",int(num_failure),"of",int(num_try), "attempts failing")
 print("Failure rate =",num_failure/num_try)
 exit()
