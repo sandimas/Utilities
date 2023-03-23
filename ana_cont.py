@@ -77,8 +77,8 @@ import sys
 import os
 import pandas as pd
 import toml
-sys.path.insert(0, "/home/james/Documents/code/ana_cont")
-sys.path.insert(0, "/lustre/isaac/proj/UTK0014/AnalyticContinuation/ana_cont")
+sys.path.insert(0, "/home/james/Documents/code/ana_cont") # James' laptop
+sys.path.insert(0, "/lustre/isaac/proj/UTK0014/AnalyticContinuation/ana_cont") # ISAAC NG
 import ana_cont.continuation as cont
 """
 ana_cont citation.
@@ -185,7 +185,7 @@ else:
     orbital_list = np.zeros((n_orbitals,1),int)
     for orb in range(0,n_orbitals):
         orbital_list[orb] = orb
-print("orbital_list\n",orbital_list)
+
 # ALPHA
 if num_args > 9:
     alpha_method = sys.argv[9].lower()
@@ -220,29 +220,32 @@ except:
     print(data_file_str,"not found")
     print("You may need to run process_correlation_measurement(...) in Julia")
     exit()
-data_values = pd.DataFrame(data_frame, columns=['mean_r']).to_numpy()
-data_err = pd.DataFrame(data_frame, columns=['std']).to_numpy()
+data_values_tmp = pd.DataFrame(data_frame, columns=['mean_r']).to_numpy()
+data_err_tmp = pd.DataFrame(data_frame, columns=['std']).to_numpy()
 
 
 # Sometimes the code outputs diagonal elements first, sometimes off diagonals
-# Find correct range for diagonal
+# Find correct ranges for diagonal elements
 data_ID1 = pd.DataFrame(data_frame, columns=['ID_1']).to_numpy()
 data_ID2 = pd.DataFrame(data_frame, columns=['ID_2']).to_numpy()
+# Calculate total number of k points per orbital
 k_total = 1
-for i in range(0,n_dims):
-    k_total *= k_max_run[i]+1
-ID_test_len = n_orbitals * n_tau * k_total
-if np.array_equal(data_ID1[:ID_test_len],data_ID2[:ID_test_len]):
-    diagonal_lower = 0
-    diagonal_upper = ID_test_len
-else:
-    diagonal_lower = int((ID_test_len * (n_orbitals - 1))/2)
-    diagonal_upper = diagonal_lower + ID_test_len
-
-print("Diagonal IDs found for range",diagonal_lower,"to",diagonal_upper)
-data_values = data_values[diagonal_lower:diagonal_upper]
-data_err = data_err[diagonal_lower:diagonal_upper]
-
+for dim in range(0,n_dims):
+    k_total *= k_max_run[dim]+1
+# Calculate length of each ID pair dataset
+ID_t_k_len = int(n_tau * k_total)
+total_ID_pairs = int(len(data_ID1)/ID_t_k_len)
+# fill final data
+data_values = np.zeros((n_orbitals*ID_t_k_len,1),np.double)
+data_err = np.zeros((n_orbitals*ID_t_k_len,1),np.double)
+for pair in range(0,total_ID_pairs):
+    low_pos_tmp = int(pair*ID_t_k_len)
+    if data_ID1[low_pos_tmp] == data_ID2[low_pos_tmp]:
+        high_pos_tmp = low_pos_tmp + ID_t_k_len
+        low_pos = int((data_ID1[low_pos_tmp]-1) * ID_t_k_len)
+        high_pos = int(low_pos + ID_t_k_len)
+        data_values[low_pos:high_pos] = data_values_tmp[low_pos_tmp:high_pos_tmp]
+        data_err[low_pos:high_pos] = data_err_tmp[low_pos_tmp:high_pos_tmp]
 
 
 # Enumerate omega and tau values
@@ -277,19 +280,7 @@ model /= np.trapz(model,omega_vals)
 if (not os.path.exists(folder_str + "/ana_cont")):
     os.mkdir(folder_str + "/ana_cont")
 
-####### TEST BLOCK for checking reshaping 
-# data_k1 = pd.DataFrame(data_frame, columns=['K_1']).to_numpy()
-# data_k1 = data_k1[diagonal_lower:diagonal_upper]
-# data_ID1 = data_ID1[diagonal_lower:diagonal_upper]
-# data_ID2 = data_ID2[diagonal_lower:diagonal_upper]
-# data_k1 = np.reshape(data_k1, (n_tau,n_orbitals,k_shape[0],k_shape[1],k_shape[2]))
-# data_ID1 = np.reshape(data_ID1, (n_orbitals,n_tau,k_shape[2],k_shape[1],k_shape[0]))
-# data_ID2 = np.reshape(data_ID2, (n_tau,n_orbitals,k_shape[0],k_shape[1],k_shape[2]))
-# print(data_k1[0,:,0,0,0])
-# print(data_ID1[0,:,0,0,0])
-# print(data_ID2[0,:,0,0,0])
-# exit()
-#######
+
 
 num_failure = 0.0
 num_try = 0.0
@@ -302,10 +293,11 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                 output[:,0] = omega_vals
         
                 for orbital in orbital_list[orbital_group]:
+                    # If list is done values of -1 will break from this loop
                     if orbital == -1:
-                        print("break")
                         break    
                     num_try += 1.0
+                    # Set up AC
                     probl = cont.AnalyticContinuationProblem(im_axis=tau_vals, re_axis=omega_vals,
                                                             im_data=data_values[orbital,:,k1,k2,k3],
                                                             kernel_mode=kernel_str, beta=beta)
