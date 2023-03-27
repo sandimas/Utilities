@@ -8,19 +8,19 @@ and knowing K and G, we solve for A. K is a known kernel for fermionic
 
 This file will take arguments passed via command line to perform analytic continuation
 
-    python3 ana_cont.py FOLDER CORRELATION OMEGA_MIN OMEGA_MAX N_OMEGA K_MIN K_MAX ORBITALS ALPHA OPTIMIZER NAMETAG
+    python3 ana_cont.py FOLDER CORRELATION SPACE OMEGA_MIN OMEGA_MAX N_OMEGA K_MIN K_MAX ORBITALS ALPHA OPTIMIZER NAMETAG
 
 examples:
 1D Chain, k points [0,19], treat each orbital separately
-    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
+    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" "momentum"\
                          -10.0 10.0 101 0 19 all "chi2kink" "scipy_lm" "chi2run"
 
 1D Chain, default settings, all k points
-    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "greens_up" \
+    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "greens_up" "position"\
                          -10.0 10.0 101
 
 3D, passing 3D k points with k_x = 1, k_y = [0,19], k_z = 4, merge orbitals 0 with 2, 1 with 3
-    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" \
+    python3 ana_cony.py "/path_to/hubbard_cuprate_n1.00_n-1.450-1" "spin_z" "momentum"\
                          -10.0 10.0 101 1x0x4 1x19x4 0+2x1+3
 
                     
@@ -31,6 +31,8 @@ FOLDER:
     Output folder for SmoQyDQMC
 CORRELATION:
     'spin_z', 'density', 'greens_up', 'greens_dn' or 'phonon_greens'
+SPACE:
+    'position' or 'momentum'
 OMEGA_MIN, OMEGA_MAX, N_OMEGA:
     If you only apply Analytic Continuation on the range you care about plotting 
     it is highly likely to fail! If that happens, you may need to expand your range
@@ -117,8 +119,8 @@ def parse_toml(folder):
 
 # Parse arguments
 num_args = len(sys.argv)
-if num_args < 6:
-    print("Required arguments are \n\tFOLDER CORRELATION OMEGA_MIN OMEGA_MAX N_OMEGA\nExiting")
+if num_args < 7:
+    print("Required arguments are \n\tFOLDER CORRELATION SPACE OMEGA_MIN OMEGA_MAX N_OMEGA\nExiting")
     exit()
 
 folder_str = sys.argv[1]
@@ -126,27 +128,34 @@ n_dims, beta, n_tau, n_orbitals, k_min_run, k_max_run = parse_toml(folder_str)
 
 # load correlation string, correct for likely typos
 correlation_str = sys.argv[2].lower().replace('-','_')
-allowed_correlations = ('spin_z', 'density', 'greens_up', 'greens_dn', 'phonon_greens')
+allowed_correlations = ('spin_z', 'density', 'greens_up', 'greens_dn', 'phonon_greens',"spin_x")
+
 if allowed_correlations.count(correlation_str) == 0:
-    print(correlation_str,"is not an allowed correlation")
+    print(correlation_str," is not an allowed correlation")
     exit()
 if (correlation_str == 'greens_up') or (correlation_str == 'greens_dn'):
     kernel_str = 'time_fermionic'
 else:
     kernel_str = 'time_bosonic'
 
-omega_min = float(sys.argv[3])
-omega_max = float(sys.argv[4])
-omega_num = int(sys.argv[5])
+allowed_spaces = ('momentum','position')
+space_str = sys.argv[3].lower()
+if allowed_spaces.count(space_str) == 0:
+    print(space_str," is not allowed. Use momentum or position, only")
+
+
+omega_min = float(sys.argv[4])
+omega_max = float(sys.argv[5])
+omega_num = int(sys.argv[6])
 omega_step = (omega_max - omega_min) / (omega_num - 1)
 
 # K_MIN and K_MAX
-if num_args > 7:
-    k_min_str = sys.argv[6]
+if num_args > 8:
+    k_min_str = sys.argv[7]
     if (k_min_str != "all"):
         k_min_str_array = k_min_str.split('x')
         k_min = [int(i) for i in k_min_str_array]
-        k_max_str_array = sys.argv[7].split('x')
+        k_max_str_array = sys.argv[8].split('x')
         k_max = [int(i) for i in k_max_str_array]
         if (np.shape(k_min)[0] != n_dims) or (np.shape(k_max)[0] != n_dims):
             print("Simulation was",n_dims,"dimensional. Incorrect dimensions on K values")
@@ -160,14 +169,14 @@ else:
     k_max = k_max_run
     k_min = k_min_run
 # ORBITALS
-if num_args > 8:
-    if sys.argv[8].lower() == "all":
+if num_args > 9:
+    if sys.argv[9].lower() == "all":
         orbital_list = np.zeros((n_orbitals,1),int)
         for orb in range(0,n_orbitals):
             orbital_list[orb] = orb
     else:
         try:
-            txt_groups = sys.argv[8].split('x')
+            txt_groups = sys.argv[9].split('x')
             n_orbital_groups = len(txt_groups)
             maxlen = 1
             for i in range(0,n_orbital_groups):
@@ -178,7 +187,7 @@ if num_args > 8:
                 for orb in range(0,len(split_string)):
                     orbital_list[group,orb] = int(split_string[orb])
         except:
-            print(sys.argv[8]," is not an acceptable input for ORBITALS")
+            print(sys.argv[9]," is not an acceptable input for ORBITALS")
             exit()
 else:
     # default to all  
@@ -187,8 +196,8 @@ else:
         orbital_list[orb] = orb
 
 # ALPHA
-if num_args > 9:
-    alpha_method = sys.argv[9].lower()
+if num_args > 10:
+    alpha_method = sys.argv[10].lower()
     allowed_alphas = ('historic','classic','bryan','chi2kink')
     if allowed_alphas.count(alpha_method) == 0:
         print(alpha_method,"is not an allowed ALPHA.")
@@ -197,8 +206,8 @@ if num_args > 9:
 else:
     alpha_method = 'chi2kink'
 # OPTIMIZER
-if num_args > 10:
-    optimizer = sys.argv[10].lower()
+if num_args > 11:
+    optimizer = sys.argv[11].lower()
     allowed_optimizers = ('newton','scipy_lm')
     if allowed_optimizers.count(optimizer) == 0:
         print(optimizer, "is not an allowed OPTIMIZER")
@@ -207,11 +216,11 @@ if num_args > 10:
 else:
     optimizer = 'scipy_lm'
 # NAMETAG
-if num_args > 11:
-    nametag = '_' + sys.argv[11]
+if num_args > 12:
+    nametag = '_' + sys.argv[12]
 else:
     nametag = ''
-data_file_str = folder_str + '/time-displaced/' + correlation_str + '/' + correlation_str + "_momentum_time-displaced_stats.csv"
+data_file_str = folder_str + '/time-displaced/' + correlation_str + '/' + correlation_str + "_" +space_str +"_time-displaced_stats.csv"
 
 # Using pandas read the data file 
 try:
@@ -222,7 +231,8 @@ except:
     exit()
 data_values_tmp = pd.DataFrame(data_frame, columns=['mean_r']).to_numpy()
 data_err_tmp = pd.DataFrame(data_frame, columns=['std']).to_numpy()
-
+if correlation_str == "phonon_greens":
+    data_values_tmp = - data_values_tmp
 
 # Sometimes the code outputs diagonal elements first, sometimes off diagonals
 # Find correct ranges for diagonal elements
@@ -294,6 +304,7 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
         
                 for orbital in orbital_list[orbital_group]:
                     # If list is done values of -1 will break from this loop
+                    write = True
                     if orbital == -1:
                         break    
                     num_try += 1.0
@@ -309,13 +320,15 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                                             interactive=False,
                                             verbose=False)
                         output[:,1] += sol.A_opt
-                        
+                        print(np.count_nonzero(output[:,1]))
                     except:
                         print("Solver failed to converge for")
-                        print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:")
+                        print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:", k3)
                         num_failure += 1.0
-                output_file_name = folder_str + '/ana_cont/' + correlation_str + '_o' + txt_groups[orbital_group] + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
-                np.savetxt(output_file_name,output,delimiter=' ')
+                        write = False
+                    if write:    
+                        output_file_name = folder_str + '/ana_cont/' + correlation_str + '_' + space_str+ '_o' + txt_groups[orbital_group] + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
+                        np.savetxt(output_file_name,output,delimiter=' ')
 print("Code finished with",int(num_failure),"of",int(num_try), "attempts failing")
 print("Failure rate =",num_failure/num_try)
 exit()
