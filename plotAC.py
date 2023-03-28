@@ -342,6 +342,7 @@ class plotAC:
     def plot_heatmap(self,data_2D,omegas,filename,extent=None,
                      x_label="",y_label="$\omega$",xtick_labels="default",title="",
                      density_of_states=None):
+        plt.clf()
         if type(density_of_states) != type(None):
             output_folder = self._out_directory
             if extent == None:

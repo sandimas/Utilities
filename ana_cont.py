@@ -305,6 +305,8 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                 for orbital in orbital_list[orbital_group]:
                     # If list is done values of -1 will break from this loop
                     write = True
+                    output_file_name = folder_str + '/ana_cont/' + correlation_str + '_' + space_str+ '_o' + txt_groups[orbital_group] + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
+                        
                     if orbital == -1:
                         break    
                     num_try += 1.0
@@ -324,10 +326,11 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                     except:
                         print("Solver failed to converge for")
                         print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:", k3)
+                        with open('fail_list.txt', 'a') as f:
+                            f.write("Failed: ",output_file_name)
                         num_failure += 1.0
                         write = False
                     if write:    
-                        output_file_name = folder_str + '/ana_cont/' + correlation_str + '_' + space_str+ '_o' + txt_groups[orbital_group] + '_' + str(k1) + '_' + str(k2) + '_' + str(k3) + nametag + '.csv'
                         np.savetxt(output_file_name,output,delimiter=' ')
 print("Code finished with",int(num_failure),"of",int(num_try), "attempts failing")
 print("Failure rate =",num_failure/num_try)
