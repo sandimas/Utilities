@@ -1,7 +1,6 @@
 #!/bin/python3
 
 import numpy as np
-import math
 import os
 import toml
 import matplotlib.pyplot as plt
@@ -19,10 +18,14 @@ class GenericError(Exception):
         return(repr(self.data))
     
 
+# plotAC
+# This class handles SmoQyDQMC output which has been process through ana_cont.py
+# It incorporates features to quickly plot spectral functions and dynamic structure factors
 class plotAC:
     # List of allowed correlation functions
     _allowed_correlations = ('spin_z', 'density', 'greens_up', 'greens_dn', 'phonon_greens', 'spin_x', 'pair')
     _allowed_spaces = ('momentum','position')
+
     # Constructor
     #  sim_directory    : root folder for a simulation
     #  output_directory : folder to put images and combined data files
@@ -74,13 +77,17 @@ class plotAC:
     def get_allowed_correlations(self):
         return self._allowed_correlations
 
-    # Get allowed space types
+    # Returns list of allowed spaces
     def get_allowed_spaces(self):
         return self._allowed_spaces
     
 
     # Checks if entire data set exists for a correlation type and orbital
     #   and if the omegas are the same for all files
+    # correlation: string e.g. "greens_up", etc
+    # space      : "momentum" or "position"
+    # orbital    : string in "0+3" format
+    #  
     # Returns True/False 
     def check_data_exists(self,correlation,space,orbital):
         found = True
@@ -114,7 +121,13 @@ class plotAC:
                     
         return found
     
-    # Loads data from data files and returns 4D array [omegas,k1,k2,k3]
+    # Merges data from ana_cont.py output and returns 4D array [omegas,k1,k2,k3]
+    # correlation: string "greens_up", etc
+    # space      : string "momentum" or "position"
+    # orbital    : string in "0+2" format
+    # save_merged: after merging the data save it to output folder
+    #
+    # Returns 4D array [omegas,k1,k2,k3]
     def merge_data(self,correlation,space,orbital,save_merged=False):
         success = True
         # Load omega list
@@ -122,9 +135,8 @@ class plotAC:
             file_name = correlation + '_' + space  + "_o" + str(orbital) + '_0_0_0.csv'
             omegas = np.loadtxt(self._directory + "/ana_cont/" + file_name,delimiter=' ')[:,0]
         except:
-            print("Couldn't load omegas from ",file_name)
+            print("Couldn't load omegas from ",self._directory + "/ana_cont/" + file_name)
             print("try using check_data_exists method first")
-            success = False
             return None,None,success
         # Data
         data_arr = np.zeros((len(omegas),self._n_k_loop[0],self._n_k_loop[1],self._n_k_loop[2]))
@@ -146,8 +158,15 @@ class plotAC:
             self.save_data(correlation,orbital,data_arr,omegas)
         return omegas,data_arr,success
 
-    # Saves the data in csv format
-    def save_data(self,correlation,orbital,data_array,omegas):
+    # Saves the data in csv format to output directory
+    # correlation: string "greens_up", etc
+    # space      : string "momentum" or "position"
+    # orbital    : string in "0+2" format
+    # data_array : 4D array of shape (n_omegas,k1,k2,k3)
+    # omegas     : 1D array with the value of each omega point
+    # 
+    # Returns nothing 
+    def save_data(self,correlation,space,orbital,data_array,omegas):
         n_omega = len(omegas)
         
         data_array_flat = data_array.flatten()
@@ -176,11 +195,16 @@ class plotAC:
             correlation : data_array_flat,
         }
         df = pd.DataFrame(csv_data)
-        df.to_csv(self._out_directory + "/" + correlation +"_o"+str(orbital)+ ".csv", sep=' ')
+        df.to_csv(self._out_directory + "/" + correlation + '_' +  space +   "_o"+str(orbital)+ ".csv", sep=' ')
         return
     
-    # Load data from saved data above
-    def load_data(self,correlation,orbital):
+    # Loads data from save_data method
+    # correlation: string "greens_up", etc
+    # space      : string "momentum" or "position"
+    # orbital    : string in "0+2" format
+    # 
+    # Returns 1D array of omega values, 4D array of saved values (n_omega,k1,k2,k3) 
+    def load_data(self,correlation,space,orbital):
         data_file_str = self._out_directory +"/" + correlation +"_o"+str(orbital)+ ".csv"
         df = pd.read_csv(data_file_str,delimiter=' ')
         omegas = pd.DataFrame(df, columns=['OMEGA']).to_numpy()
@@ -189,10 +213,11 @@ class plotAC:
         data_array = data_array.reshape((len(omegas),self._n_k_loop[0],self._n_k_loop[1],self._n_k_loop[2]))
         return omegas,data_array
 
-    # Takes
-    #  data_array_2D : shape of (len(omegas),n_k), omegas
+    # Modifies 2D data with a host of capabilities
+    # data_array_2D : shape of (len(omegas),n_k)
+    # omegas        : list of omega values
     #
-    # This modifies to the data to do the following operations:
+    # This modifies the data passed in with the following operations:
     # omega_min : trim values below an energy threshold
     # omega_max : trim values above an energy threshold
     # center_k0 : move k axis (a=1) from [0,2pi) to (-pi,pi]
@@ -237,8 +262,14 @@ class plotAC:
                     data_array_new[-1,:] = data_array_new[0,:]
         return data_array_new, omegas_new, extent
 
-    # Turns 3D k points to 1D on an axis or diagonal of your choosing
-    # To do diagonals the axis must be of the same number of k points! 
+    # Takes full 4D array (omegas,k1,k2,k3) and returns 2D array (omegas, n_k)
+    #   You can take a cut along a single axis or a diagonal using this method
+    #   To do diagonals the axis must be of the same number of k points!
+    # data_array   : data in shape (omegas,k1,k2,k3)
+    # k_points_low : starting k points when making a cut
+    # k_points_high: ending k points for a cut
+    # ascending    : True means it takes cut from low k point to high in that dimension. False means
+    #                you take the cut in descending order (like M->Gamma)
     def make_1D(self,data_array,k_points_low=(0,0,0),k_points_high=(-1,0,0),ascending=(True,True,True)):
         # I can spend a few hours figuring out how to do this in a cute way
         # instead let's brute force this guy
@@ -298,34 +329,84 @@ class plotAC:
         return data_2D
 
 
-    # Creates a quick and easy 2D plot for a correlation function
+    # Creates a rough 2D plot for a our Data. Can append Density of States to RHS of plot
+    # data_2D      : Data to plot (n_omega,n_k)
+    # omegas       : omega values (n_omega)
+    # filename     : output file name. Will be in output folder
+    # extent       : 4 tuple of k_min,k_max,w_min,w_max
+    # x_label      : Label for x axis
+    # y_label      : Label for y axis
+    # xtick_labels : (2), array of two tuples position of x labels and the x labels
+    # Title        : title for the whole figure
+    # density_of_states : (n_omega, 2) If passed plots a line plot on RHS showing DOS 
     def plot_heatmap(self,data_2D,omegas,filename,extent=None,
-                     x_label="",y_label="$\omega$",xtick_labels="default",title=""):
-        plt.xlabel(x_label,fontsize=20)
-        plt.ylabel(y_label,fontsize=20)
-        plt.title(title,fontsize=20)
-        if extent == None:
-            extent = -1, 1, min(omegas), max(omegas)
+                     x_label="",y_label="$\omega$",xtick_labels="default",title="",
+                     density_of_states=None):
+        if type(density_of_states) != type(None):
+            if extent == None:
+                extent = -1, 1, min(omegas), max(omegas)
+            fig= plt.figure()
+            gs = fig.add_gridspec(1,2,wspace=0,width_ratios=[6,1])
+            (ax1,ax2) = gs.subplots(sharey='all')
+            fig.suptitle(title)
+            ax1.set(xlabel=x_label,ylabel=y_label)
+            
+            if xtick_labels != "default":
+                ax1.set_xticks(xtick_labels[0],xtick_labels[1])
+            ax2.plot(density_of_states[:,1],density_of_states[:,0])
+            ax2.set_xticks([])
+            ax1.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto',interpolation='none')
+            plt.savefig(output_folder+"/"+filename,bbox_inches='tight')
+            ax1.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto')
+            plt.savefig(output_folder+"/i_"+filename,bbox_inches='tight')
+        else:
+            plt.xlabel(x_label,fontsize=20)
+            plt.ylabel(y_label,fontsize=20)
+            plt.title(title,fontsize=20)
+            if extent == None:
+                extent = -1, 1, min(omegas), max(omegas)
 
-        output_folder = self._out_directory
-        if xtick_labels != "default":
-            plt.xticks(xtick_labels[0],xtick_labels[1])
-        plt.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto',interpolation='none')
-        plt.savefig(output_folder+"/"+filename,bbox_inches='tight')
-        plt.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto')
-        plt.savefig(output_folder+"/i_"+filename,bbox_inches='tight')
-
+            output_folder = self._out_directory
+            if xtick_labels != "default":
+                plt.xticks(xtick_labels[0],xtick_labels[1])
+            plt.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto',interpolation='none')
+            plt.savefig(output_folder+"/"+filename,bbox_inches='tight')
+            plt.imshow(data_2D,origin='lower',extent=extent,cmap='hot',aspect='auto')
+            plt.savefig(output_folder+"/i_"+filename,bbox_inches='tight')
+        # plt.plot(density_of_states[:,1],density_of_states[:,0])
+        # plt.show()
         return
     
 
-    # Take all data
-    def high_symmetry_2D(self,data_array):
+    # Simplifies taking high symmetry cuts in 2D
+    #  Gamma -> X - > M -> Gamma
+    # data_array : 4D array (n_omega,k1,k2,k3)
+    # omegas     : 1D array of omegas
+    #
+    # Returns data (n_omega,k1), extent, labels
+    def high_symmetry_2D(self,data_array,omegas):
         n_k_2 = int((self._n_k_loop[0]+1)/2)
-
-        # print(n_k_2,"nk2")
         data_2D = np.zeros((data_array.shape[0],3*n_k_2))
         data_2D[:,0:n_k_2] = self.make_1D(data_array,k_points_low=(0,0,0),k_points_high=(n_k_2-1,0,0),ascending=(True,True,True))
         data_2D[:,n_k_2:2*n_k_2] = self.make_1D(data_array,k_points_low=(n_k_2-1,0,0),k_points_high=(n_k_2-1,n_k_2-1,0),ascending=(True,True,True))
         data_2D[:,2*n_k_2:] = self.make_1D(data_array,k_points_low=(0,0,0),k_points_high=(n_k_2-1,n_k_2-1,0),ascending=(False,False,True))
+        extent = 0, 2, min(omegas), max(omegas)
+        xticks = (0,.66,1.33,2)
+        xtick_labels = ("$\Gamma$","X","M","$\Gamma$")
+        return data_2D, extent, [xticks,xtick_labels]
+    
 
-        return data_2D 
+    # Gets the density of states
+    #   DOS \propto G(r=0,omega)
+    # orbital : string in "0+3" format
+    def get_DOS(self,orbital):
+        
+        try:
+            file_name = 'greens_up_position_o' + str(orbital) + '_0_0_0.csv'
+            density_of_states = np.loadtxt(self._directory+ "/ana_cont/" + file_name,delimiter=' ')
+        except:
+            print("Couldn't load DOS from ",file_name)
+            return None
+        
+        
+        return density_of_states
