@@ -343,6 +343,7 @@ class plotAC:
                      x_label="",y_label="$\omega$",xtick_labels="default",title="",
                      density_of_states=None):
         if type(density_of_states) != type(None):
+            output_folder = self._out_directory
             if extent == None:
                 extent = -1, 1, min(omegas), max(omegas)
             fig= plt.figure()
