@@ -327,7 +327,7 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                         print("Solver failed to converge for")
                         print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:", k3)
                         with open('fail_list.txt', 'a') as f:
-                            f.write("Failed: ",output_file_name)
+                            f.write("Failed: " + output_file_name)
                         num_failure += 1.0
                         write = False
                     if write:    
