@@ -322,7 +322,7 @@ for orbital_group in range(0,np.shape(orbital_list)[0]):
                                             interactive=False,
                                             verbose=False)
                         output[:,1] += sol.A_opt
-                        print(np.count_nonzero(output[:,1]))
+                        
                     except:
                         print("Solver failed to converge for")
                         print("   orbital:",orbital,"k1:",k1,"k2:",k2,"k3:", k3)
