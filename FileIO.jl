@@ -12,7 +12,9 @@ using DataFrames
 ##     type::String,             # "equal-time", "time-displaced", etc
 ##     bin::Bool=false)          # Using binned data or stats data
 ##                               #   e.g. files that end in "*bins.csv" vs "*stats.csv"
-## 
+##  
+## Data combinations not reported in csv will be filled with NaN values
+##    e.g. if orbital combo 1,2 doesn't exist, you will get NaNs
 ## 
 ## For bin==false returns:
 ##   dimension_key: dictionary which maps stats.csv csv headers to dimensions in the three returned arrays
